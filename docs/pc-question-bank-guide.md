@@ -883,7 +883,31 @@ Markdown 示例：
 
 不要等全库处理完才接出卷。只要有一批 `ready` 题，就可以先服务出卷。
 
-## 18. 验收标准
+## 18. 睡前启动模式
+
+如果用户要睡觉并要求明早看进度，PC Agent 必须优先启动“最小可运行后台流水线”，不要为了完善所有能力而迟迟不启动。
+
+睡前启动的最低实现顺序：
+
+1. 初始化 `C:\PaperAnalyzer` 目录和 `bank.sqlite` 基础表。
+2. 写入默认 source root：`C:\Users\madri\Documents\questions-lib`。
+3. 实现并运行 `paper-bank scan --all`，至少能增量写入 `source_files` 和 `pipeline_jobs`。
+4. 实现 worker 主循环，能从 `pipeline_jobs` 取任务、写心跳、写日志、失败重试。
+5. 实现 `paper-bank status`，至少能展示文件数、job 队列、worker 心跳、C 盘空间、keep-awake 状态。
+6. 实现 `paper-bank dashboard --build`，至少生成静态 `dashboard.html`。
+7. 启动 `paper-bank worker --forever --keep-awake=active`。
+8. 注册 Windows 任务计划，确保开机/登录后继续跑、失败后重试、定时扫描。
+9. 用 `powercfg /requests` 验证防睡眠。
+10. 如果 OCR/AI/拆题尚未完全实现，也要先让扫描、队列、status、dashboard、worker、自启、防睡眠跑起来。
+
+睡前启动成功的定义：
+
+- Codex 对话关闭后，worker 仍在后台运行。
+- Windows 不会因为空闲进入睡眠而中断 active job。
+- 明早用户能打开 `C:\PaperAnalyzer\views\dashboard.html` 或运行 `paper-bank status` 查看进度。
+- 如果模型用量耗尽或网络失败，job 进入 `retry_waiting`，不会导致 worker 退出。
+
+## 19. 验收标准
 
 PC Agent 完成题库流水线第一版时，应报告：
 

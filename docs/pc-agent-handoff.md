@@ -363,3 +363,39 @@ D10 强区分度/竞赛风格
 - 是否用一个样例跑通过分析任务。
 - 是否用一个样例跑通过出卷任务。
 - 如果有阻塞，明确卡在哪一步，以及需要用户提供什么。
+
+## 14. 睡前启动要求
+
+当用户要求“今晚启动，明早看进度”时，PC Agent 不应停留在方案或脚本生成阶段，必须完成到后台任务已经运行。
+
+最低完成项：
+
+1. 拉取 `codex/mvp` 最新代码。
+2. 初始化 `C:\PaperAnalyzer`。
+3. 将 source root 配置为 `C:\Users\madri\Documents\questions-lib`。
+4. 初始化 `bank.sqlite`。
+5. 启动一次 `paper-bank scan --all`。
+6. 启动 `paper-bank worker --forever --keep-awake=active` 或等价后台 worker。
+7. 生成 `C:\PaperAnalyzer\views\dashboard.html`。
+8. 注册 Windows 任务计划：
+   - `PaperAnalyzer Scan`
+   - `PaperAnalyzer Bank Worker`
+   - `PaperAnalyzer MCP Worker`
+   - `PaperAnalyzer Dashboard Snapshot`
+9. 验证 `paper-bank status` 可用。
+10. 验证 `powercfg /requests` 能看到防睡眠请求，或说明当前 keep-awake 验证结果。
+
+睡前必须给用户回报：
+
+```text
+已启动/未启动：
+当前 worker 状态：
+dashboard 路径：
+status 摘要：
+Windows 任务计划：
+keep-awake 验证：
+明早查看方式：
+阻塞项：
+```
+
+除非缺少 GitHub SSH、服务器 SSH、MCP token、模型 API key 或源目录不存在，否则不要停下来询问；直接尽力启动可运行的本地流水线。
