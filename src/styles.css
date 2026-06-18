@@ -30,7 +30,7 @@ textarea {
   z-index: 10;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   min-height: 64px;
   padding: 10px clamp(14px, 4vw, 32px);
@@ -51,6 +51,24 @@ textarea {
   background: transparent;
   border: 0;
   cursor: pointer;
+}
+
+.topbar-nav {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar-nav .ant-btn,
+.topbar-refresh {
+  flex: 0 0 auto;
 }
 
 .brand-button span {
@@ -139,6 +157,17 @@ textarea {
   border-radius: 8px;
 }
 
+.choice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.template-sections {
+  max-width: 520px;
+}
+
 .question-label {
   width: 100%;
 }
@@ -184,17 +213,22 @@ textarea {
 
 @media (max-width: 768px) {
   .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: wrap;
   }
 
-  .topbar .ant-space {
-    width: 100%;
-    justify-content: space-between;
+  .brand-button {
+    flex: 1 1 calc(100% - 92px);
   }
 
-  .topbar .ant-btn {
-    flex: 1;
+  .topbar-refresh {
+    flex: 0 0 auto;
+  }
+
+  .topbar-nav {
+    order: 3;
+    flex-basis: 100%;
+    padding-bottom: 2px;
   }
 
   .workflow-steps {
@@ -216,6 +250,10 @@ textarea {
   .info-line {
     grid-template-columns: 1fr;
     gap: 2px;
+  }
+
+  .template-sections {
+    max-width: 100%;
   }
 }
 
