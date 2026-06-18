@@ -71,6 +71,10 @@ textarea {
   gap: 16px;
 }
 
+.intro-alert {
+  margin-bottom: 16px;
+}
+
 .workflow-steps {
   padding: 12px 16px;
   background: #ffffff;
@@ -159,6 +163,16 @@ textarea {
 
 .answer-collapse {
   margin-top: 12px;
+}
+
+.active-task {
+  background: #f0f7ff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ant-list-item {
+  padding-inline: 12px !important;
 }
 
 .preview-image {

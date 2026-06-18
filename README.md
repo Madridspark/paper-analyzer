@@ -1,15 +1,14 @@
 # Paper Analyzer
 
-面向家长、老师和学生的试卷批改与个性化练习 MVP。
+面向自用场景的试卷任务中心。手机端上传试卷照片，家里 Windows PC 上的 Codex Agent 通过 MCP 领取任务、处理试卷，并把报告和新试卷回传到服务器。
 
 ## 功能
 
-- 首次打开自动进入 OpenAI API Key 配置页。
-- 选择年级、学科和学生信息。
+- 手机网页创建试卷处理任务。
 - 上传一张或多张试卷照片。
-- 使用 GPT 多模态能力识别、批改并生成学习分析。
-- 按薄弱知识点生成新的针对性练习试卷。
-- 支持历史记录、答案解析和网页打印。
+- 查看任务状态、原图和处理结果。
+- 提供 MCP 接口给 PC Codex Agent 领取任务和回传结果。
+- 支持 Docker 部署到公网服务器。
 
 ## 本地开发
 
@@ -42,6 +41,13 @@ http://localhost:8787
 
 可以通过 `PORT` 修改端口。
 
+任务数据默认保存在 `data/`，生产环境建议设置：
+
+```bash
+DATA_DIR=/data
+WORKER_TOKEN=你的-worker-token
+```
+
 如果部署在路径前缀下，例如 `/paper-analyzer/`，构建时设置：
 
 ```bash
@@ -52,14 +58,27 @@ VITE_BASE_PATH=/paper-analyzer/ npm run build
 
 ```bash
 docker build --build-arg VITE_BASE_PATH=/paper-analyzer/ -t paper-analyzer:latest .
-docker run -d --name paper-analyzer --restart unless-stopped -p 8787:8787 paper-analyzer:latest
+docker run -d --name paper-analyzer --restart unless-stopped \
+  -e DATA_DIR=/data \
+  -e WORKER_TOKEN=你的-worker-token \
+  -v paper_analyzer_data:/data \
+  -p 8787:8787 \
+  paper-analyzer:latest
 ```
 
-## OpenAI Key
+## MCP
 
-API Key 在页面内配置，保存在当前浏览器本地存储中。前端会把 key 随业务请求发送给本项目后端代理，后端只转发请求，不持久化保存。
+PC Codex Agent 通过 Streamable HTTP 连接：
 
-默认模型是 `gpt-4.1-mini`，可在设置页调整。
+```text
+http://服务器地址/paper-analyzer/mcp
+```
+
+请求需要携带：
+
+```text
+Authorization: Bearer <WORKER_TOKEN>
+```
 
 ## 文档
 

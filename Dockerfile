@@ -23,4 +23,5 @@ COPY server ./server
 COPY --from=build /app/dist ./dist
 
 EXPOSE 8787
+VOLUME ["/data"]
 CMD ["npm", "start"]
