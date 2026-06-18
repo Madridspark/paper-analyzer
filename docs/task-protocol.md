@@ -285,6 +285,8 @@ MCP endpoint：
 
 ```text
 Authorization: Bearer <WORKER_TOKEN>
+Content-Type: application/json
+Accept: application/json, text/event-stream
 ```
 
 ### 4.1 list_pending_tasks
