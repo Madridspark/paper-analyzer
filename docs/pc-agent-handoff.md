@@ -59,6 +59,7 @@ Data volume: paper_analyzer_data
    - `docs/prd.md`
    - `docs/task-protocol.md`
    - `docs/pc-agent.md`
+   - `docs/pc-question-bank-guide.md`
    - `docs/pc-agent-handoff.md`
 4. 获取 `WORKER_TOKEN`，本机保存为私密环境变量或本地未入库配置。
 5. 验证 MCP 可访问。
@@ -211,13 +212,17 @@ difficulty-calibration
 
 ## 8. 本机数据目录建议
 
+用户的 Windows PC 只有一个 4T 的 C 盘。题库固定根目录为 `C:\Users\madri\Documents\questions-lib`。默认所有题库、缓存、输出和日志都放在该目录下，不要写 `D:\`、`E:\` 等路径，除非用户明确指定新增磁盘。
+
 建议创建本机工作目录：
 
 ```text
-D:\PaperAnalyzer\
+C:\Users\madri\Documents\questions-lib\
+  source-roots\
   incoming\
   samples\
   question-bank\
+  cache\
   benchmark-papers\
   outputs\
   logs\
@@ -226,13 +231,23 @@ D:\PaperAnalyzer\
 建议约定：
 
 - `incoming`：临时下载的任务图片和输入文件。
+- `source-roots`：记录用户提供的源文件根目录清单；不要移动原始网盘文件。
 - `samples`：用户提供的黄金样例。
-- `question-bank`：本机题库草稿、审核后题库、去重索引。
+- `question-bank`：本机 SQLite 题库、全文索引、去重索引。
+- `cache`：页图、缩略图、OCR 中间结果、题图/公式/表格裁剪。
 - `benchmark-papers`：难度 3、5、7、10 基准卷。
 - `outputs`：生成的试卷、答案、JSON。
 - `logs`：任务处理日志。
 
 所有目录中的真实学生数据都不要提交到 GitHub。
+
+题库建设细节见 `docs/pc-question-bank-guide.md`。核心要求：
+
+- 全自动运行，不依赖人工审核。
+- 支持增量扫描，用户后续往源目录新增文件后，只处理新增或变化文件。
+- 原始网盘文件不移动、不重命名，只建立虚拟分类视图。
+- 出卷时不回原 PDF 现读题，不现 OCR；出卷只读取 SQLite 结构化题目和本地 asset。
+- 题目保留多表示：搜索纯文本、展示 Markdown/LaTeX、结构化 block、原题裁剪图、题图/公式 asset。
 
 ## 9. 题库建设要求
 
@@ -241,7 +256,7 @@ D:\PaperAnalyzer\
 1. 用户自己已有的纸质卷、PDF、Word、图片、历史手工处理材料。
 2. 老师或机构授权材料。
 3. 用户购买并允许自用整理的题库或教辅。
-4. 大模型生成后人工审核通过的题目。
+4. 大模型生成并通过自动校验的题目。
 
 每道题建议保存为结构化 JSON：
 
@@ -269,7 +284,8 @@ D:\PaperAnalyzer\
     "name": "2026-06-xx 用户提供练习",
     "licenseNote": "仅个人自用"
   },
-  "status": "pending-review",
+  "contentStatus": "structured",
+  "usableForGeneration": true,
   "similarityHash": "",
   "createdAt": "2026-06-18T00:00:00.000Z"
 }
@@ -295,7 +311,7 @@ D10 强区分度/竞赛风格
 初中一年级 数学
 ```
 
-基准卷可以来自用户已有材料，也可以由大模型生成后人工审核。PC Agent 应输出每套基准卷的结构化元数据：
+基准卷可以来自用户已有材料，也可以由大模型生成后自动校验。PC Agent 应输出每套基准卷的结构化元数据：
 
 ```json
 {
