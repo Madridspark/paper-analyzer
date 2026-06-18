@@ -50,6 +50,7 @@ C:\PaperAnalyzer\
     assets\
     tmp\
   views\
+    dashboard.html
   exports\
   logs\
   outputs\
@@ -63,7 +64,7 @@ C:\PaperAnalyzer\
 - `cache/thumbs` 保存缩略图。
 - `cache/ocr` 保存 OCR 中间结果。
 - `cache/assets` 保存题目图、表格、复杂公式截图。
-- `views` 保存虚拟分类视图，优先用快捷方式、清单或 HTML，不复制原 PDF。
+- `views` 保存虚拟分类视图和进度仪表盘，优先用快捷方式、清单或 HTML，不复制原 PDF。
 - `outputs` 保存出卷结果。
 
 必须实现磁盘保护：
@@ -297,6 +298,47 @@ create table if not exists pipeline_jobs (
 );
 ```
 
+### 4.9 worker_runs
+
+```sql
+create table if not exists worker_runs (
+  id text primary key,
+  worker_type text not null,
+  pid integer,
+  status text not null,
+  started_at text not null,
+  heartbeat_at text,
+  stopped_at text,
+  current_job_id text,
+  keep_awake_enabled integer not null default 0,
+  message text
+);
+```
+
+### 4.10 progress_snapshots
+
+```sql
+create table if not exists progress_snapshots (
+  id text primary key,
+  snapshot_at text not null,
+  source_file_count integer not null default 0,
+  indexed_file_count integer not null default 0,
+  classified_file_count integer not null default 0,
+  paper_count integer not null default 0,
+  question_count integer not null default 0,
+  ready_question_count integer not null default 0,
+  pending_job_count integer not null default 0,
+  running_job_count integer not null default 0,
+  failed_job_count integer not null default 0,
+  retry_waiting_job_count integer not null default 0,
+  input_tokens_total integer not null default 0,
+  output_tokens_total integer not null default 0,
+  priority_progress_json text not null default '{}',
+  disk_free_bytes integer,
+  message text
+);
+```
+
 ## 5. 状态设计
 
 文件状态：
@@ -430,15 +472,219 @@ paper-bank scan --root "C:\Users\<user>\Downloads\网盘资料"
 
 ```powershell
 paper-bank scan --all
-paper-bank worker --forever
+paper-bank worker --forever --keep-awake
 paper-bank status
+paper-bank status --watch
+paper-bank dashboard --open
 paper-bank vacuum-cache
 paper-bank build-views
 ```
 
 `worker --forever` 不代表永不退出，而是长期循环取任务。异常必须被捕获并写入日志。
 
-## 9. 是否整理源文件
+## 9. 进度查看
+
+PC Agent 必须提供三种进度查看方式：命令行、HTML 仪表盘、日志文件。
+
+### 9.1 命令行状态
+
+命令：
+
+```powershell
+paper-bank status
+paper-bank status --watch
+paper-bank status --json
+```
+
+`status` 至少展示：
+
+- 源文件总数、已索引、已分类、失败数。
+- 已识别 `papers` 数。
+- 已入库题目数、`ready` 题目数。
+- 当前正在处理的 job。
+- `pipeline_jobs` 队列：pending、running、retry_waiting、failed。
+- `ai_jobs` 队列：pending、running、retry_waiting、failed。
+- 今日/累计 input tokens、output tokens。
+- 当前模型用量状态：normal、rate_limited、daily_budget_exhausted、retry_waiting。
+- C 盘剩余空间。
+- 五下、六上 × 语文/数学/英语的优先范围进度。
+- D5 基准卷候选进度。
+- worker 最近心跳时间。
+- keep-awake 是否生效。
+
+优先范围进度示例：
+
+```text
+Priority bootstrap
+小学五年级 下册 语文: papers 7/10, ready questions 186, D5 candidates 1/3
+小学五年级 下册 数学: papers 10/10, ready questions 274, D5 candidates 3/3
+小学五年级 下册 英语: papers 4/10, ready questions 92, D5 candidates 0/3
+小学六年级 上册 语文: papers 6/10, ready questions 151, D5 candidates 1/3
+小学六年级 上册 数学: papers 9/10, ready questions 233, D5 candidates 2/3
+小学六年级 上册 英语: papers 3/10, ready questions 77, D5 candidates 0/3
+```
+
+### 9.2 HTML 仪表盘
+
+命令：
+
+```powershell
+paper-bank dashboard --build
+paper-bank dashboard --open
+```
+
+输出：
+
+```text
+C:\PaperAnalyzer\views\dashboard.html
+```
+
+仪表盘必须是本地静态 HTML，方便用户直接双击打开。第一版不要求实时 WebSocket；`dashboard --build` 重新生成即可。后续可以增加本地只读服务：
+
+```powershell
+paper-bank dashboard --serve --port 8765
+```
+
+仪表盘内容：
+
+- 总体进度卡片。
+- 优先范围进度表。
+- 最近 20 个失败文件/失败 job。
+- 当前 token 用量和下一次重试时间。
+- C 盘空间和缓存占用。
+- worker 心跳、运行时长、keep-awake 状态。
+- 最近生成的 papers、questions、D5 候选。
+
+### 9.3 日志
+
+日志路径：
+
+```text
+C:\PaperAnalyzer\logs\paper-bank-worker.log
+C:\PaperAnalyzer\logs\paper-bank-scan.log
+C:\PaperAnalyzer\logs\mcp-worker.log
+```
+
+要求：
+
+- 日志滚动，单文件建议不超过 50MB。
+- 失败必须包含 job id、source file id、错误类型、下一次重试时间。
+- 不在日志中输出 API key、worker token、完整学生隐私信息。
+
+### 9.4 数据来源
+
+`paper-bank status` 和 `dashboard` 只读 SQLite：
+
+- `source_files`
+- `papers`
+- `questions`
+- `pipeline_jobs`
+- `ai_jobs`
+- `worker_runs`
+- `progress_snapshots`
+
+不要通过重新扫描文件来计算状态。
+
+## 10. Windows 防睡眠
+
+长期建库不能依赖 Codex 对话窗口保持活跃。PC Agent 必须让本地 worker 自己处理 Windows 防睡眠。
+
+### 10.1 worker keep-awake
+
+`paper-bank worker --forever` 默认应启用 keep-awake；显式参数：
+
+```powershell
+paper-bank worker --forever --keep-awake
+paper-bank worker --forever --keep-awake=always
+paper-bank worker --forever --keep-awake=active
+paper-bank worker --forever --no-keep-awake
+```
+
+建议默认：
+
+```text
+--keep-awake=active
+```
+
+含义：
+
+- 有 pending/running job 时阻止系统睡眠。
+- 正在 OCR、AI 调用、PDF 解析、出卷时阻止系统睡眠。
+- 如果所有任务都在长时间 `retry_waiting`，可以允许睡眠；但 Windows 任务计划必须能在下次计划时间唤醒或登录后继续。
+
+首轮优先建库期间可使用：
+
+```text
+--keep-awake=always
+```
+
+直到五下、六上优先范围达到可测试体量。
+
+### 10.2 Windows API
+
+keep-awake 应由 worker 进程调用 Windows `SetThreadExecutionState` 实现，而不是永久修改系统电源计划。
+
+建议策略：
+
+```text
+active/always 时：
+ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+
+需要屏幕不灭时才额外使用：
+ES_DISPLAY_REQUIRED
+```
+
+默认不强制屏幕常亮，只阻止系统睡眠。worker 退出时必须清除电源请求。
+
+验证命令：
+
+```powershell
+powercfg /requests
+```
+
+运行 worker 时应能看到来自 `paper-bank` 或运行时进程的 SYSTEM 请求。
+
+### 10.3 Windows 任务计划
+
+PC Agent 应创建 Windows Task Scheduler 任务：
+
+```text
+PaperAnalyzer Scan
+PaperAnalyzer Bank Worker
+PaperAnalyzer MCP Worker
+PaperAnalyzer Dashboard Snapshot
+```
+
+建议：
+
+- `PaperAnalyzer Scan`：每 1 小时运行 `paper-bank scan --all`。
+- `PaperAnalyzer Bank Worker`：开机或用户登录时运行 `paper-bank worker --forever --keep-awake=active`。
+- `PaperAnalyzer MCP Worker`：开机或用户登录时运行 `mcp-worker --forever`。
+- `PaperAnalyzer Dashboard Snapshot`：每 10 分钟运行 `paper-bank dashboard --build`。
+- 任务设置勾选 “Wake the computer to run this task”。
+- 任务失败后 5 分钟重试。
+- 不要要求用户保持 Codex 窗口打开。
+
+### 10.4 用量耗尽时
+
+模型用量周期内耗尽时，不应退出 worker。应将受影响 `ai_jobs` 标记为：
+
+```json
+{
+  "status": "retry_waiting",
+  "runAfter": "下个周期开始后的安全时间",
+  "error": "daily token budget exhausted"
+}
+```
+
+worker 行为：
+
+- 继续处理不需要 AI 的本地 job。
+- 继续处理其他可用模型的 job。
+- 没有可做任务时进入低频轮询。
+- 在 `status` 和 dashboard 中显示下一次 AI 重试时间。
+
+## 11. 是否整理源文件
 
 不要物理整理源文件。不要移动、复制、重命名用户从网盘下载的原始资料。
 
@@ -467,7 +713,7 @@ C:\PaperAnalyzer\views\
 - CSV/XLSX 清单。
 - 不复制原文件。
 
-## 10. 内容表示与格式保真
+## 12. 内容表示与格式保真
 
 题目不能只保存纯文本。每道题至少保存多种表示：
 
@@ -504,7 +750,7 @@ Markdown 示例：
 ![图1](assets/q_123_diagram_1.png)
 ```
 
-## 11. OCR 与 AI 调用策略
+## 13. OCR 与 AI 调用策略
 
 可以接受较大 token 消耗，但不能无结构地烧 token。AI 调用必须可追踪、可重跑、可缓存。
 
@@ -529,7 +775,7 @@ Markdown 示例：
 
 所有 AI 结果写入 `ai_jobs.result_json`，并同步落到业务表。prompt 版本升级后，可以只重跑受影响的 job。
 
-## 12. 难度字段与出卷逻辑
+## 14. 难度字段与出卷逻辑
 
 难度只表示学生做题的难易程度，范围 1-10。不要把难度和识别质量、置信度混淆。
 
@@ -572,7 +818,7 @@ Markdown 示例：
 - 已掌握知识点可提高一档做迁移。
 - 一张卷子前中后要有坡度，不要全是同一难度。
 
-## 13. 默认模板与基准卷
+## 15. 默认模板与基准卷
 
 默认模板：
 
@@ -589,7 +835,7 @@ Markdown 示例：
 - 大模型生成的基准卷必须经过自动答案校验和难度一致性校验。
 - 首轮优先为“五下、六上 × 语文/数学/英语”寻找 D5 基准卷候选，找到候选后继续后台处理全库。
 
-## 14. 出卷读取规则
+## 16. 出卷读取规则
 
 出卷时：
 
@@ -613,7 +859,7 @@ Markdown 示例：
 - 使用 `needs_solving` 并现场校验答案。
 - 使用模型生成变式题，并记录来源为 `generated`。
 
-## 15. 最小实现顺序
+## 17. 最小实现顺序
 
 第一版按这个顺序实现：
 
@@ -629,13 +875,15 @@ Markdown 示例：
 10. 实现难度/知识点标注。
 11. 实现从 `papers` 聚合试卷画像。
 12. 实现 D5 基准卷候选选择。
-13. 实现虚拟视图生成。
-14. 实现出卷检索 API 或本地函数。
-15. 接入 `practice-generation` Skill。
+13. 实现 `paper-bank status`、`dashboard` 和日志滚动。
+14. 实现 Windows keep-awake 和任务计划注册。
+15. 实现虚拟视图生成。
+16. 实现出卷检索 API 或本地函数。
+17. 接入 `practice-generation` Skill。
 
 不要等全库处理完才接出卷。只要有一批 `ready` 题，就可以先服务出卷。
 
-## 16. 验收标准
+## 18. 验收标准
 
 PC Agent 完成题库流水线第一版时，应报告：
 
@@ -646,6 +894,10 @@ PC Agent 完成题库流水线第一版时，应报告：
 - 增量扫描重复运行不会重复入库。
 - 随机新增一个文件后，只处理新增文件。
 - 中断 worker 后重启能继续处理。
+- `paper-bank status` 能展示总体进度、优先范围进度、队列状态、token 用量、C 盘空间和 keep-awake 状态。
+- `C:\PaperAnalyzer\views\dashboard.html` 能生成并打开。
+- worker 运行时 `powercfg /requests` 能看到防睡眠请求，或能说明当前 keep-awake 模式和验证结果。
+- Windows 任务计划已创建，支持开机/登录自启、失败重试和定时扫描。
 - 源文件没有被移动或重命名。
 - 能生成虚拟分类视图。
 - 至少从一个 PDF 中结构化出题目。
