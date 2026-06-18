@@ -1,0 +1,32 @@
+{
+  "name": "paper-analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI paper grading and personalized practice MVP.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "api": "node server/index.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node server/index.mjs"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.2.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "antd": "^6.1.1",
+    "express": "^5.2.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
