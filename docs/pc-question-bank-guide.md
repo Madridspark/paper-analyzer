@@ -21,16 +21,22 @@
 
 ## 2. 磁盘与目录
 
-用户 PC 只有一个 4T 的 C 盘。题库固定根目录为：
+用户 PC 只有一个 4T 的 C 盘。用户下载题库源文件的默认目录为：
 
 ```text
 C:\Users\madri\Documents\questions-lib\
 ```
 
+该目录是 source root，只读扫描，不作为流水线工作目录。默认工作目录为：
+
+```text
+C:\PaperAnalyzer\
+```
+
 建议目录：
 
 ```text
-C:\Users\madri\Documents\questions-lib\
+C:\PaperAnalyzer\
   config\
     source-roots.json
     pipeline.json
@@ -51,7 +57,7 @@ C:\Users\madri\Documents\questions-lib\
 
 约定：
 
-- `source-roots.json` 保存用户资料根目录列表，例如 `C:\Users\madri\Documents\questions-lib\source-roots` 或用户另行指定的网盘下载目录。
+- `source-roots.json` 保存用户资料根目录列表，默认包含 `C:\Users\madri\Documents\questions-lib`。
 - `bank.sqlite` 保存索引、任务队列、题目、全文检索、AI 调用记录。
 - `cache/pages` 保存必要页面图，不保存所有页面高清图，避免浪费 C 盘。
 - `cache/thumbs` 保存缩略图。
@@ -327,7 +333,7 @@ paper-bank build-views
 如果用户希望浏览整齐，生成虚拟视图：
 
 ```text
-C:\Users\madri\Documents\questions-lib\views\
+C:\PaperAnalyzer\views\
   小学五年级\
     数学\
       期末试卷\
@@ -491,7 +497,7 @@ Markdown 示例：
 
 第一版按这个顺序实现：
 
-1. 初始化 `C:\Users\madri\Documents\questions-lib` 目录和 `bank.sqlite`。
+1. 初始化 `C:\PaperAnalyzer` 工作目录和 `bank.sqlite`。
 2. 实现 source root 配置。
 3. 实现增量文件扫描和 `source_files`。
 4. 实现 PDF 页数、可复制文本抽取和缩略图。
@@ -510,7 +516,8 @@ Markdown 示例：
 
 PC Agent 完成题库流水线第一版时，应报告：
 
-- `C:\Users\madri\Documents\questions-lib` 目录已创建。
+- `C:\PaperAnalyzer` 工作目录已创建。
+- 默认 source root 已配置为 `C:\Users\madri\Documents\questions-lib`。
 - `bank.sqlite` schema 已初始化。
 - 已配置 source root。
 - 增量扫描重复运行不会重复入库。

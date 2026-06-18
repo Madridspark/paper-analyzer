@@ -212,12 +212,12 @@ difficulty-calibration
 
 ## 8. 本机数据目录建议
 
-用户的 Windows PC 只有一个 4T 的 C 盘。题库固定根目录为 `C:\Users\madri\Documents\questions-lib`。默认所有题库、缓存、输出和日志都放在该目录下，不要写 `D:\`、`E:\` 等路径，除非用户明确指定新增磁盘。
+用户的 Windows PC 只有一个 4T 的 C 盘。`C:\Users\madri\Documents\questions-lib` 是用户下载题库源文件的目录，不是流水线工作目录。默认工作目录使用 `C:\PaperAnalyzer`，题库、缓存、输出和日志都放在工作目录下；源目录只读扫描，不移动、不重命名。
 
 建议创建本机工作目录：
 
 ```text
-C:\Users\madri\Documents\questions-lib\
+C:\PaperAnalyzer\
   source-roots\
   incoming\
   samples\
@@ -231,7 +231,7 @@ C:\Users\madri\Documents\questions-lib\
 建议约定：
 
 - `incoming`：临时下载的任务图片和输入文件。
-- `source-roots`：记录用户提供的源文件根目录清单；不要移动原始网盘文件。
+- `source-roots`：记录用户提供的源文件根目录清单；默认源目录为 `C:\Users\madri\Documents\questions-lib`；不要移动原始网盘文件。
 - `samples`：用户提供的黄金样例。
 - `question-bank`：本机 SQLite 题库、全文索引、去重索引。
 - `cache`：页图、缩略图、OCR 中间结果、题图/公式/表格裁剪。
