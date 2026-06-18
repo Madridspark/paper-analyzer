@@ -42,6 +42,19 @@ http://localhost:8787
 
 可以通过 `PORT` 修改端口。
 
+如果部署在路径前缀下，例如 `/paper-analyzer/`，构建时设置：
+
+```bash
+VITE_BASE_PATH=/paper-analyzer/ npm run build
+```
+
+## Docker
+
+```bash
+docker build --build-arg VITE_BASE_PATH=/paper-analyzer/ -t paper-analyzer:latest .
+docker run -d --name paper-analyzer --restart unless-stopped -p 8787:8787 paper-analyzer:latest
+```
+
 ## OpenAI Key
 
 API Key 在页面内配置，保存在当前浏览器本地存储中。前端会把 key 随业务请求发送给本项目后端代理，后端只转发请求，不持久化保存。

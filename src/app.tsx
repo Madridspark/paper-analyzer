@@ -57,6 +57,7 @@ const { Title, Text, Paragraph } = Typography;
 
 const settingsKey = 'paper-analyzer-settings';
 const historyKey = 'paper-analyzer-history';
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const defaultSettings: StoredSettings = {
   apiKey: '',
@@ -182,7 +183,7 @@ export default function App() {
     setGeneratedPaper(null);
 
     try {
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(`${apiBaseUrl}api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +238,7 @@ export default function App() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch('/api/generate-practice', {
+      const response = await fetch(`${apiBaseUrl}api/generate-practice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
