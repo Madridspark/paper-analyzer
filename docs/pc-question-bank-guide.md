@@ -157,15 +157,70 @@ create table if not exists source_pages (
 );
 ```
 
-### 4.4 questions
+### 4.4 papers
+
+`papers` 表示从一个源文件中识别出的一套试卷、练习卷、单元练习或准试卷。一个 PDF 可以包含 0 到多套 `papers`。
+
+```sql
+create table if not exists papers (
+  id text primary key,
+  source_file_id text not null,
+  title text,
+  grade text,
+  subject text,
+  publisher text,
+  term text,
+  paper_type text,
+  page_start integer,
+  page_end integer,
+  orientation text,
+  is_complete integer not null default 0,
+  question_count integer not null default 0,
+  section_count integer not null default 0,
+  avg_difficulty real,
+  p75_difficulty real,
+  max_difficulty integer,
+  hard_ratio real,
+  knowledge_coverage_json text not null default '[]',
+  layout_completeness real,
+  answer_availability real,
+  benchmark_anchor text,
+  benchmark_score real,
+  created_at text not null,
+  updated_at text not null
+);
+```
+
+### 4.5 paper_sections
+
+```sql
+create table if not exists paper_sections (
+  id text primary key,
+  paper_id text not null,
+  source_file_id text not null,
+  name text,
+  question_type_name text,
+  question_count integer not null default 0,
+  order_no integer not null,
+  page_start integer,
+  page_end integer,
+  created_at text not null,
+  updated_at text not null
+);
+```
+
+### 4.6 questions
 
 ```sql
 create table if not exists questions (
   id text primary key,
   source_file_id text not null,
+  paper_id text,
+  section_id text,
   source_page_start integer,
   source_page_end integer,
   source_question_index integer,
+  question_no text,
   grade text,
   subject text,
   publisher text,
@@ -191,7 +246,17 @@ create table if not exists questions (
 );
 ```
 
-### 4.5 ai_jobs
+关系约定：
+
+```text
+source_files 1 -> n papers
+papers 1 -> n paper_sections
+paper_sections 1 -> n questions
+```
+
+如果某个文件不是完整试卷，但能识别出练习模块，可以创建 `paper_type = "practice-set"` 的准试卷。题目必须尽量关联到 `paper_id` 和 `section_id`；无法可靠关联时允许为空，但仍要保留 `source_file_id` 和页码。
+
+### 4.7 ai_jobs
 
 ```sql
 create table if not exists ai_jobs (
@@ -214,7 +279,7 @@ create table if not exists ai_jobs (
 );
 ```
 
-### 4.6 pipeline_jobs
+### 4.8 pipeline_jobs
 
 ```sql
 create table if not exists pipeline_jobs (
@@ -274,7 +339,61 @@ disabled        自动判定不可用或用户后续禁用
 - 若题目依赖图形、表格或复杂公式，必须有可用 asset。
 - 有 `answer_md`，或 `content_status = needs_solving` 且出卷前可自动求解校验。
 
-## 6. 增量扫描
+## 6. 启动优先级
+
+为了尽快验证完整系统可用性，第一轮建库采用“优先冲刺 + 后台不停跑”策略。
+
+优先范围：
+
+```json
+{
+  "priorityGradeTerms": [
+    { "grade": "小学五年级", "term": "下册", "shortName": "五下" },
+    { "grade": "小学六年级", "term": "上册", "shortName": "六上" }
+  ],
+  "prioritySubjects": ["语文", "数学", "英语"],
+  "targetPaperCountPerGradeSubject": 10,
+  "firstBenchmarkAnchor": "D5"
+}
+```
+
+调度要求：
+
+1. 扫描仍然覆盖整个 source root，不只扫优先范围。
+2. 文件分类阶段优先识别路径、文件名或内容中命中“五下、六上、五年级下、六年级上、小学五年级下册、小学六年级上册”和语文/数学/英语的文件。
+3. 拆题阶段优先处理上述范围内的完整试卷、单元练习、期中期末卷和带答案练习。
+4. 对每个 `grade + term + subject`，优先沉淀约 10 套可用 `papers` 的题目体量。
+5. 达到约 10 套后，立即开始为该范围寻找 `D5` 基准卷候选。
+6. 找到 D5 候选后，不停止 worker；该范围降为普通优先级，继续处理其他文件和其他年级学科。
+7. 不要因为某个范围暂时不足 10 套而阻塞全局；记录缺口，继续处理其他优先范围。
+
+D5 基准卷候选规则：
+
+- 来源必须是已结构化的 `papers`，不是文件级猜测。
+- `grade`、`term`、`subject` 明确。
+- `paper_type` 优先选择完整试卷、期中/期末、单元测试、综合练习。
+- `question_count` 合理，题型模块较完整。
+- 平均难度接近 5，且整卷有基础题、中档题和少量提高题。
+- `answer_availability` 越高越优先。
+- 与已选候选重复度低。
+
+每个范围保存 D5 Top 3 候选：
+
+```json
+{
+  "grade": "小学五年级",
+  "term": "下册",
+  "subject": "数学",
+  "anchor": "D5",
+  "candidates": [
+    { "paperId": "paper_001", "score": 0.92 },
+    { "paperId": "paper_019", "score": 0.88 },
+    { "paperId": "paper_102", "score": 0.84 }
+  ]
+}
+```
+
+## 7. 增量扫描
 
 每次扫描 source root 时：
 
@@ -294,7 +413,7 @@ paper-bank scan --root "C:\Users\<user>\Downloads\网盘资料"
 
 同一个命令可以每天跑、每小时跑或开机后跑，不应重复消耗 AI token。
 
-## 7. 全自动与断点续跑
+## 8. 全自动与断点续跑
 
 所有处理都必须通过 `pipeline_jobs` 和 `ai_jobs` 调度。
 
@@ -319,7 +438,7 @@ paper-bank build-views
 
 `worker --forever` 不代表永不退出，而是长期循环取任务。异常必须被捕获并写入日志。
 
-## 8. 是否整理源文件
+## 9. 是否整理源文件
 
 不要物理整理源文件。不要移动、复制、重命名用户从网盘下载的原始资料。
 
@@ -348,7 +467,7 @@ C:\PaperAnalyzer\views\
 - CSV/XLSX 清单。
 - 不复制原文件。
 
-## 9. 内容表示与格式保真
+## 10. 内容表示与格式保真
 
 题目不能只保存纯文本。每道题至少保存多种表示：
 
@@ -385,7 +504,7 @@ Markdown 示例：
 ![图1](assets/q_123_diagram_1.png)
 ```
 
-## 10. OCR 与 AI 调用策略
+## 11. OCR 与 AI 调用策略
 
 可以接受较大 token 消耗，但不能无结构地烧 token。AI 调用必须可追踪、可重跑、可缓存。
 
@@ -410,7 +529,7 @@ Markdown 示例：
 
 所有 AI 结果写入 `ai_jobs.result_json`，并同步落到业务表。prompt 版本升级后，可以只重跑受影响的 job。
 
-## 11. 难度字段与出卷逻辑
+## 12. 难度字段与出卷逻辑
 
 难度只表示学生做题的难易程度，范围 1-10。不要把难度和识别质量、置信度混淆。
 
@@ -453,7 +572,7 @@ Markdown 示例：
 - 已掌握知识点可提高一档做迁移。
 - 一张卷子前中后要有坡度，不要全是同一难度。
 
-## 12. 默认模板与基准卷
+## 13. 默认模板与基准卷
 
 默认模板：
 
@@ -468,8 +587,9 @@ Markdown 示例：
 - 基准卷用于校准难度，不要求一次性全覆盖。
 - 优先从已经识别出的高质量结构化试卷中自动挑选候选。
 - 大模型生成的基准卷必须经过自动答案校验和难度一致性校验。
+- 首轮优先为“五下、六上 × 语文/数学/英语”寻找 D5 基准卷候选，找到候选后继续后台处理全库。
 
-## 13. 出卷读取规则
+## 14. 出卷读取规则
 
 出卷时：
 
@@ -493,7 +613,7 @@ Markdown 示例：
 - 使用 `needs_solving` 并现场校验答案。
 - 使用模型生成变式题，并记录来源为 `generated`。
 
-## 14. 最小实现顺序
+## 15. 最小实现顺序
 
 第一版按这个顺序实现：
 
@@ -503,16 +623,19 @@ Markdown 示例：
 4. 实现 PDF 页数、可复制文本抽取和缩略图。
 5. 实现 AI 文件分类 job。
 6. 实现 OCR job，只对需要 OCR 的页运行。
-7. 实现试题拆分和 `questions` 入库。
-8. 实现 asset 裁剪和 `stem_md` 引用。
-9. 实现难度/知识点标注。
-10. 实现虚拟视图生成。
-11. 实现出卷检索 API 或本地函数。
-12. 接入 `practice-generation` Skill。
+7. 实现 `papers`、`paper_sections`、`questions` 的关联入库。
+8. 实现五下、六上 × 语文/数学/英语优先队列。
+9. 实现 asset 裁剪和 `stem_md` 引用。
+10. 实现难度/知识点标注。
+11. 实现从 `papers` 聚合试卷画像。
+12. 实现 D5 基准卷候选选择。
+13. 实现虚拟视图生成。
+14. 实现出卷检索 API 或本地函数。
+15. 接入 `practice-generation` Skill。
 
 不要等全库处理完才接出卷。只要有一批 `ready` 题，就可以先服务出卷。
 
-## 15. 验收标准
+## 16. 验收标准
 
 PC Agent 完成题库流水线第一版时，应报告：
 
@@ -526,6 +649,10 @@ PC Agent 完成题库流水线第一版时，应报告：
 - 源文件没有被移动或重命名。
 - 能生成虚拟分类视图。
 - 至少从一个 PDF 中结构化出题目。
-- 题目包含 `stem_plain`、`stem_md`、来源文件、页码、题型、难度。
+- 题目包含 `stem_plain`、`stem_md`、来源文件、页码、`paper_id`、`section_id`、题型、难度。
 - 公式或图形题有 LaTeX 或 asset 兜底。
 - 出卷时未读取原 PDF、未现 OCR。
+- 五下、六上 × 语文/数学/英语进入优先队列。
+- 至少一个优先范围形成约 10 套 `papers` 的题目体量，或报告当前缺口。
+- 至少一个优先范围产出 D5 基准卷候选 Top 3，或报告当前缺口。
+- 达成优先范围目标后，worker 仍继续处理全库，不能自动停机。
