@@ -20,6 +20,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY server ./server
+COPY src/data ./src/data
 COPY --from=build /app/dist ./dist
 
 EXPOSE 8787
