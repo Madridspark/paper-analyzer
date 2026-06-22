@@ -1,8 +1,10 @@
 import {
-  ArrowLeftOutlined,
   CloudUploadOutlined,
+  DeleteOutlined,
+  EditOutlined,
   FileDoneOutlined,
   LinkOutlined,
+  MenuOutlined,
   PlusOutlined,
   ReloadOutlined,
   SendOutlined
@@ -15,19 +17,23 @@ import {
   Col,
   Descriptions,
   Divider,
+  Drawer,
   Empty,
   Flex,
   Form,
   Input,
   InputNumber,
   List,
+  Menu,
+  Modal,
+  Popconfirm,
   Row,
   Select,
   Space,
   Spin,
-  Tabs,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload
 } from 'antd';
@@ -43,6 +49,7 @@ import type {
   BankSubjectTermTypeRow,
   CatalogResponse,
   KnowledgePoint,
+  PaperTemplate,
   QuestionType,
   Student,
   Submission,
@@ -55,7 +62,7 @@ const { TextArea } = Input;
 
 const apiBaseUrl = import.meta.env.BASE_URL;
 
-type ActivePage = 'upload' | 'tasks' | 'bank' | 'students' | 'practice' | 'templates' | 'syllabus';
+type ActivePage = 'upload' | 'tasks' | 'bank' | 'students' | 'practice' | 'templates';
 
 const navigationItems: Array<{ key: ActivePage; label: string }> = [
   { key: 'upload', label: '作答上传' },
@@ -63,9 +70,17 @@ const navigationItems: Array<{ key: ActivePage; label: string }> = [
   { key: 'bank', label: '题库' },
   { key: 'students', label: '学生管理' },
   { key: 'practice', label: '出卷' },
-  { key: 'templates', label: '模板库' },
-  { key: 'syllabus', label: '教学大纲' }
+  { key: 'templates', label: '模板库' }
 ];
+
+const pageRoutes: Record<ActivePage, string> = {
+  upload: 'upload',
+  tasks: 'tasks',
+  bank: 'bank',
+  students: 'students',
+  practice: 'practice',
+  templates: 'templates'
+};
 
 const statusMap = {
   pending: { label: '等待', color: 'gold' },
@@ -83,8 +98,15 @@ export default function App() {
   const [analysisTasks, setAnalysisTasks] = useState<AppTask[]>([]);
   const [practiceTasks, setPracticeTasks] = useState<AppTask[]>([]);
   const [bankProgress, setBankProgress] = useState<BankProgress | null>(null);
-  const [activeTab, setActiveTab] = useState<ActivePage>('upload');
+  const [activeTab, setActiveTab] = useState<ActivePage>(() => getActivePageFromLocation());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const handleRouteChange = () => setActiveTab(getActivePageFromLocation());
+    window.addEventListener('popstate', handleRouteChange);
+    return () => window.removeEventListener('popstate', handleRouteChange);
+  }, []);
 
   useEffect(() => {
     void loadAll();
@@ -132,6 +154,15 @@ export default function App() {
   const grades = catalog?.catalog.grades ?? [];
   const subjects = catalog?.catalog.subjects ?? [];
 
+  const navigateToPage = (page: ActivePage) => {
+    setActiveTab(page);
+    setMobileMenuOpen(false);
+    const targetUrl = buildPageUrl(page);
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== targetUrl) {
+      window.history.pushState(null, '', targetUrl);
+    }
+  };
+
   const renderActivePage = () => {
     switch (activeTab) {
       case 'tasks':
@@ -150,15 +181,13 @@ export default function App() {
             catalog={catalog}
             onCreated={async () => {
               message.success('出卷任务已创建');
-              setActiveTab('tasks');
+              navigateToPage('tasks');
               await loadAll();
             }}
           />
         );
       case 'templates':
         return catalog ? <TemplateWorkspace catalog={catalog} onChanged={loadAll} /> : null;
-      case 'syllabus':
-        return catalog ? <SyllabusWorkspace catalog={catalog} /> : null;
       case 'upload':
       default:
         return (
@@ -168,7 +197,7 @@ export default function App() {
             students={students}
             onCreated={async () => {
               message.success('分析任务已创建');
-              setActiveTab('tasks');
+              navigateToPage('tasks');
               await loadAll();
             }}
           />
@@ -179,24 +208,40 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand-button" type="button" onClick={() => void loadAll()}>
+        <button className="brand-button" type="button" onClick={() => navigateToPage('upload')}>
           <FileDoneOutlined />
-          <span>Paper Analyzer</span>
+          <span>李老师专属试卷系统</span>
         </button>
-        <nav className="topbar-nav" aria-label="页面导航">
-          {navigationItems.map((item) => (
-            <Button
-              key={item.key}
-              type={activeTab === item.key ? 'primary' : 'text'}
-              onClick={() => setActiveTab(item.key)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </nav>
-        <Button className="topbar-refresh" icon={<ReloadOutlined />} onClick={() => void loadAll()}>
-          刷新
-        </Button>
+        <Menu
+          className="topbar-menu"
+          mode="horizontal"
+          theme="dark"
+          selectedKeys={[activeTab]}
+          items={navigationItems}
+          onClick={({ key }) => navigateToPage(key as ActivePage)}
+        />
+        <Button
+          className="mobile-menu-button"
+          type="text"
+          aria-label="打开导航菜单"
+          icon={<MenuOutlined />}
+          onClick={() => setMobileMenuOpen(true)}
+        />
+        <Drawer
+          className="mobile-nav-drawer"
+          title="李老师专属试卷系统"
+          placement="right"
+          width={280}
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        >
+          <Menu
+            mode="inline"
+            selectedKeys={[activeTab]}
+            items={navigationItems}
+            onClick={({ key }) => navigateToPage(key as ActivePage)}
+          />
+        </Drawer>
       </header>
 
       <main className="main-area">
@@ -886,42 +931,7 @@ function LayoutEditor({ questionTypes, subject }: { questionTypes: QuestionType[
 }
 
 function TemplateWorkspace({ catalog, onChanged }: { catalog: CatalogResponse; onChanged: () => Promise<void> }) {
-  const [activeTab, setActiveTab] = useState('question-types');
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
-
-  if (activeTab === 'paper-templates' && creatingTemplate) {
-    return (
-      <TemplateCreatePage
-        catalog={catalog}
-        onBack={() => setCreatingTemplate(false)}
-        onCreated={async () => {
-          setCreatingTemplate(false);
-          await onChanged();
-        }}
-      />
-    );
-  }
-
-  return (
-    <Card className="panel" title="模板库">
-      <Tabs
-        activeKey={activeTab}
-        onChange={(key) => setActiveTab(key)}
-        items={[
-          {
-            key: 'question-types',
-            label: '题型管理',
-            children: <QuestionTypeManager catalog={catalog} onChanged={onChanged} />
-          },
-          {
-            key: 'paper-templates',
-            label: '模板管理',
-            children: <TemplateManager catalog={catalog} onCreate={() => setCreatingTemplate(true)} />
-          }
-        ]}
-      />
-    </Card>
-  );
+  return <TemplateManager catalog={catalog} onChanged={onChanged} />;
 }
 
 function QuestionTypeManager({ catalog, onChanged }: { catalog: CatalogResponse; onChanged: () => Promise<void> }) {
@@ -979,51 +989,53 @@ function QuestionTypeManager({ catalog, onChanged }: { catalog: CatalogResponse;
   );
 }
 
-function TemplateManager({ catalog, onCreate }: { catalog: CatalogResponse; onCreate: () => void }) {
-  return (
-    <Space direction="vertical" size={16} className="full-width">
-      <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
-        新建模板
-      </Button>
-      <List
-        size="small"
-        dataSource={catalog.paperTemplates}
-        renderItem={(item) => (
-          <List.Item>
-            <List.Item.Meta
-              title={`${item.subject} · ${item.name}`}
-              description={`${item.gradeRange.join('、') || '全年级'} · ${item.orientation === 'portrait' ? '竖版' : '横版'} · ${item.sections.length} 个模块`}
-            />
-            <Flex gap={6} wrap="wrap" className="template-sections">
-              {item.sections.map((section) => (
-                <Tag key={section.id || `${item.id}-${section.order}`}>
-                  {section.name}：{section.questionTypeName} x {section.count}
-                </Tag>
-              ))}
-            </Flex>
-          </List.Item>
-        )}
-      />
-    </Space>
-  );
-}
-
-function TemplateCreatePage({
-  catalog,
-  onBack,
-  onCreated
-}: {
-  catalog: CatalogResponse;
-  onBack: () => void;
-  onCreated: () => Promise<void>;
-}) {
+function TemplateManager({ catalog, onChanged }: { catalog: CatalogResponse; onChanged: () => Promise<void> }) {
+  const { message } = AntApp.useApp();
   const [form] = Form.useForm();
-  const selectedSubject = Form.useWatch('subject', form);
+  const [detailTemplate, setDetailTemplate] = useState<PaperTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<PaperTemplate | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const selectedSubject = Form.useWatch('subject', form) || '数学';
+  const subjectOptions = catalog.catalog.subjects.map((value) => ({ label: value, value }));
+  const gradeOptions = getGradesForSubject(catalog, selectedSubject);
+  const templates = catalog.paperTemplates;
 
-  const addTemplate = async () => {
+  const openCreate = () => {
+    const subject = '数学';
+    setEditingTemplate(null);
+    form.setFieldsValue(defaultTemplateValues(getGradesForSubject(catalog, subject)));
+    setEditorOpen(true);
+  };
+
+  const openEdit = (template: PaperTemplate) => {
+    setEditingTemplate(template);
+    form.setFieldsValue({
+      name: template.name,
+      subject: template.subject,
+      gradeRange: template.gradeRange,
+      layout: {
+        orientation: template.orientation,
+        sections: template.sections
+      }
+    });
+    setEditorOpen(true);
+  };
+
+  const handleSubjectChange = (subject: string) => {
+    const availableGrades = getGradesForSubject(catalog, subject);
+    const currentGrades = (form.getFieldValue('gradeRange') || []) as string[];
+    const currentLayout = form.getFieldValue('layout') || {};
+    form.setFieldsValue({
+      gradeRange: currentGrades.filter((grade) => availableGrades.includes(grade)),
+      layout: { ...currentLayout, sections: [] }
+    });
+  };
+
+  const saveTemplate = async () => {
     const values = await form.validateFields();
-    await requestJson('api/paper-templates', {
-      method: 'POST',
+    const path = editingTemplate ? `api/paper-templates/${editingTemplate.id}` : 'api/paper-templates';
+    await requestJson(path, {
+      method: editingTemplate ? 'PATCH' : 'POST',
       body: JSON.stringify({
         name: values.name,
         subject: values.subject,
@@ -1033,55 +1045,193 @@ function TemplateCreatePage({
       })
     });
     form.resetFields();
-    await onCreated();
+    setEditorOpen(false);
+    setEditingTemplate(null);
+    message.success(editingTemplate ? '模板已更新' : '模板已创建');
+    await onChanged();
+  };
+
+  const deleteTemplate = async (template: PaperTemplate) => {
+    await requestJson(`api/paper-templates/${template.id}`, { method: 'DELETE' });
+    message.success('模板已删除');
+    await onChanged();
   };
 
   return (
-    <Card
-      className="panel"
-      title="新建试卷模板"
-      extra={
-        <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-          返回模板库
+    <Card className="panel" title="模板库">
+      <Space direction="vertical" size={16} className="full-width">
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          新建模板
         </Button>
-      }
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          subject: '数学',
-          gradeRange: ['小学五年级'],
-          layout: {
-            orientation: 'portrait',
-            sections: [{ name: '一、填空题', questionTypeName: '填空', count: 10, order: 1 }]
-          }
+        <Table
+          rowKey="id"
+          dataSource={templates}
+          pagination={false}
+          scroll={{ x: 'max-content' }}
+          locale={{ emptyText: '暂无模板' }}
+          columns={[
+            {
+              title: '模板名称',
+              dataIndex: 'name',
+              key: 'name',
+              width: 240,
+              render: (value: string, item: PaperTemplate) => (
+                <Button type="link" className="template-name-button" onClick={() => setDetailTemplate(item)}>
+                  {value}
+                </Button>
+              )
+            },
+            {
+              title: '学科',
+              dataIndex: 'subject',
+              key: 'subject',
+              width: 90
+            },
+            {
+              title: '适用年级',
+              dataIndex: 'gradeRange',
+              key: 'gradeRange',
+              render: (value: string[]) => formatGradeRange(value, catalog.catalog.grades)
+            },
+            {
+              title: '版式',
+              dataIndex: 'orientation',
+              key: 'orientation',
+              width: 90,
+              render: (value: PaperTemplate['orientation']) => (value === 'portrait' ? '竖版' : '横版')
+            },
+            {
+              title: '题型排布',
+              key: 'sections',
+              render: (_: unknown, item: PaperTemplate) => (
+                <Flex gap={6} wrap="wrap" className="template-sections">
+                  {item.sections.map((section) => (
+                    <Tag key={section.id || `${item.id}-${section.order}`}>
+                      {section.name}：{section.questionTypeName} x {section.count}
+                    </Tag>
+                  ))}
+                </Flex>
+              )
+            },
+            {
+              title: '操作',
+              key: 'actions',
+              fixed: 'right' as const,
+              width: 112,
+              render: (_: unknown, item: PaperTemplate) => (
+                <Space size={8}>
+                  <Tooltip title="编辑">
+                    <Button aria-label="编辑模板" icon={<EditOutlined />} onClick={() => openEdit(item)} />
+                  </Tooltip>
+                  <Popconfirm
+                    title="删除模板"
+                    description={`确定删除“${item.name}”吗？`}
+                    okText="删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => void deleteTemplate(item)}
+                  >
+                    <Tooltip title="删除">
+                      <Button danger aria-label="删除模板" icon={<DeleteOutlined />} />
+                    </Tooltip>
+                  </Popconfirm>
+                </Space>
+              )
+            }
+          ]}
+        />
+      </Space>
+
+      <Modal
+        title={detailTemplate?.name}
+        open={Boolean(detailTemplate)}
+        footer={null}
+        width={760}
+        onCancel={() => setDetailTemplate(null)}
+      >
+        {detailTemplate ? <TemplateDetail template={detailTemplate} allGrades={catalog.catalog.grades} /> : null}
+      </Modal>
+
+      <Modal
+        title={editingTemplate ? '编辑试卷模板' : '新建试卷模板'}
+        open={editorOpen}
+        width={880}
+        okText="保存"
+        cancelText="取消"
+        onOk={() => void saveTemplate()}
+        onCancel={() => {
+          setEditorOpen(false);
+          setEditingTemplate(null);
         }}
       >
-        <Row gutter={12}>
-          <Col xs={24} md={8}>
-            <Form.Item name="name" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}>
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item name="subject" label="学科" rules={[{ required: true, message: '请选择学科' }]}>
-              <Select options={catalog.catalog.subjects.map((value) => ({ label: value, value }))} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item name="gradeRange" label="适用年级">
-              <Select mode="multiple" options={catalog.catalog.grades.map((value) => ({ label: value, value }))} />
-            </Form.Item>
-          </Col>
-        </Row>
-        <LayoutEditor questionTypes={catalog.questionTypes} subject={selectedSubject} />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => void addTemplate()}>
-          保存模板
-        </Button>
-      </Form>
+        <Form form={form} layout="vertical" initialValues={defaultTemplateValues(getGradesForSubject(catalog, '数学'))}>
+          <Row gutter={12}>
+            <Col xs={24} md={8}>
+              <Form.Item name="name" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="subject" label="学科" rules={[{ required: true, message: '请选择学科' }]}>
+                <Select options={subjectOptions} onChange={handleSubjectChange} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="gradeRange" label="适用年级" rules={[{ required: true, type: 'array', min: 1, message: '请选择适用年级' }]}>
+                <Select mode="multiple" options={gradeOptions.map((value) => ({ label: value, value }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <LayoutEditor questionTypes={catalog.questionTypes} subject={selectedSubject} />
+        </Form>
+      </Modal>
     </Card>
   );
+}
+
+function TemplateDetail({ template, allGrades }: { template: PaperTemplate; allGrades: string[] }) {
+  return (
+    <Space direction="vertical" size={16} className="full-width">
+      <Descriptions bordered size="small" column={1}>
+        <Descriptions.Item label="学科">{template.subject}</Descriptions.Item>
+        <Descriptions.Item label="适用年级">{formatGradeRange(template.gradeRange, allGrades)}</Descriptions.Item>
+        <Descriptions.Item label="版式">{template.orientation === 'portrait' ? '竖版' : '横版'}</Descriptions.Item>
+        <Descriptions.Item label="来源">{template.isSystem ? '系统内置' : '自定义'}</Descriptions.Item>
+      </Descriptions>
+      <Table
+        size="small"
+        rowKey={(section) => section.id || `${section.order}-${section.name}`}
+        pagination={false}
+        dataSource={[...template.sections].sort((a, b) => a.order - b.order)}
+        columns={[
+          { title: '顺序', dataIndex: 'order', key: 'order', width: 80 },
+          { title: '模块', dataIndex: 'name', key: 'name' },
+          { title: '题型', dataIndex: 'questionTypeName', key: 'questionTypeName' },
+          { title: '数量', dataIndex: 'count', key: 'count', width: 90 },
+          { title: '说明', dataIndex: 'notes', key: 'notes', render: (value?: string) => value || '-' }
+        ]}
+      />
+    </Space>
+  );
+}
+
+function defaultTemplateValues(gradeRange: string[]) {
+  return {
+    name: '小学数学标准期末卷',
+    subject: '数学',
+    gradeRange,
+    layout: {
+      orientation: 'portrait',
+      sections: [
+        { name: '一、填空题', questionTypeName: '填空', count: 15, order: 1, notes: '30分' },
+        { name: '二、选择题', questionTypeName: '选择', count: 6, order: 2, notes: '6分' },
+        { name: '三、判断题', questionTypeName: '判断', count: 6, order: 3, notes: '6分' },
+        { name: '四、计算题', questionTypeName: '计算', count: 10, order: 4, notes: '16分' },
+        { name: '五、图形计算', questionTypeName: '图形与几何', count: 1, order: 5, notes: '4分' },
+        { name: '六、解决问题', questionTypeName: '应用题', count: 6, order: 6, notes: '38分' }
+      ]
+    }
+  };
 }
 
 function SyllabusWorkspace({ catalog }: { catalog: CatalogResponse }) {
@@ -1190,6 +1340,24 @@ function assetUrl(url: string) {
   return `${apiBaseUrl}${url.replace(/^\//u, '')}`;
 }
 
+function getActivePageFromLocation(): ActivePage {
+  if (typeof window === 'undefined') {
+    return 'upload';
+  }
+  const basePath = new URL(apiBaseUrl, window.location.origin).pathname.replace(/\/$/u, '');
+  const currentPath = window.location.pathname.replace(/\/$/u, '');
+  const relativePath = (basePath && currentPath.startsWith(basePath)
+    ? currentPath.slice(basePath.length)
+    : currentPath
+  ).replace(/^\//u, '');
+  return (Object.entries(pageRoutes).find(([, route]) => route === relativePath)?.[0] as ActivePage | undefined) || 'upload';
+}
+
+function buildPageUrl(page: ActivePage) {
+  const base = apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`;
+  return `${base}${pageRoutes[page]}`;
+}
+
 function groupKey(studentIndex: number, submissionIndex: number) {
   return `${studentIndex}-${submissionIndex}`;
 }
@@ -1223,6 +1391,54 @@ function getQuestionTypeOptions(questionTypes: QuestionType[], subject?: string)
 function getNextQuestionTypeName(options: Array<{ label: string; value: string }>, sections: TemplateSection[]) {
   const used = new Set((sections || []).map((section) => section?.questionTypeName).filter(Boolean));
   return options.find((item) => !used.has(item.value))?.value || options[0]?.value || '自定义题型';
+}
+
+function getGradesForSubject(catalog: CatalogResponse, subject?: string) {
+  if (!subject) {
+    return catalog.catalog.grades;
+  }
+  const fromKnowledgePoints = catalog.knowledgePoints
+    .filter((item) => item.isActive && item.subject === subject)
+    .flatMap((item) => item.gradeRange);
+  if (fromKnowledgePoints.length) {
+    const available = new Set(fromKnowledgePoints);
+    return catalog.catalog.grades.filter((grade) => available.has(grade));
+  }
+  const stages = new Set(catalog.catalog.textbookVersions.filter((item) => item.subject === subject).map((item) => item.stage));
+  if (stages.size) {
+    return catalog.catalog.grades.filter((grade) => stages.has(getStageByGrade(grade)));
+  }
+  return catalog.catalog.grades;
+}
+
+function formatGradeRange(gradeRange: string[], allGrades: string[]) {
+  if (!gradeRange.length) {
+    return '不限年级';
+  }
+  const selected = new Set(gradeRange);
+  const consumed = new Set<string>();
+  const labels: string[] = [];
+
+  ['小学', '初中'].forEach((stage) => {
+    const stageGrades = allGrades.filter((grade) => getStageByGrade(grade) === stage);
+    if (stageGrades.length && stageGrades.every((grade) => selected.has(grade))) {
+      labels.push(stage);
+      stageGrades.forEach((grade) => consumed.add(grade));
+    }
+  });
+
+  allGrades.forEach((grade) => {
+    if (selected.has(grade) && !consumed.has(grade)) {
+      labels.push(grade);
+    }
+  });
+  gradeRange.forEach((grade) => {
+    if (!allGrades.includes(grade) && !labels.includes(grade)) {
+      labels.push(grade);
+    }
+  });
+
+  return labels.join('、');
 }
 
 function getStageByGrade(grade: string) {

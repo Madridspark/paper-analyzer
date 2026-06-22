@@ -43,62 +43,17 @@
   },
   "paperTemplates": [
     {
-      "name": "小学数学常规巩固卷",
+      "name": "小学数学标准期末卷",
       "subject": "数学",
-      "gradeRange": ["小学三年级", "小学四年级", "小学五年级", "小学六年级"],
+      "gradeRange": ["小学一年级", "小学二年级", "小学三年级", "小学四年级", "小学五年级", "小学六年级"],
       "orientation": "portrait",
       "sections": [
-        { "name": "一、填空题", "questionTypeName": "填空", "count": 10, "order": 1 },
-        { "name": "二、选择题", "questionTypeName": "选择", "count": 5, "order": 2 },
-        { "name": "三、计算题", "questionTypeName": "计算", "count": 6, "order": 3 },
-        { "name": "四、应用题", "questionTypeName": "应用题", "count": 5, "order": 4 }
-      ]
-    },
-    {
-      "name": "小学语文基础阅读卷",
-      "subject": "语文",
-      "gradeRange": ["小学三年级", "小学四年级", "小学五年级", "小学六年级"],
-      "orientation": "portrait",
-      "sections": [
-        { "name": "一、字词基础", "questionTypeName": "字词基础", "count": 10, "order": 1 },
-        { "name": "二、积累运用", "questionTypeName": "积累运用", "count": 6, "order": 2 },
-        { "name": "三、阅读理解", "questionTypeName": "现代文阅读", "count": 2, "order": 3 },
-        { "name": "四、片段写作", "questionTypeName": "片段写作", "count": 1, "order": 4 }
-      ]
-    },
-    {
-      "name": "小学英语词汇阅读卷",
-      "subject": "英语",
-      "gradeRange": ["小学三年级", "小学四年级", "小学五年级", "小学六年级"],
-      "orientation": "portrait",
-      "sections": [
-        { "name": "一、词汇运用", "questionTypeName": "词汇运用", "count": 10, "order": 1 },
-        { "name": "二、单项选择", "questionTypeName": "单项选择", "count": 10, "order": 2 },
-        { "name": "三、阅读理解", "questionTypeName": "阅读理解", "count": 2, "order": 3 },
-        { "name": "四、书面表达", "questionTypeName": "书面表达", "count": 1, "order": 4 }
-      ]
-    },
-    {
-      "name": "初中理科综合训练卷",
-      "subject": "物理",
-      "gradeRange": ["初中二年级", "初中三年级"],
-      "orientation": "portrait",
-      "sections": [
-        { "name": "一、选择题", "questionTypeName": "选择", "count": 10, "order": 1 },
-        { "name": "二、填空题", "questionTypeName": "填空", "count": 8, "order": 2 },
-        { "name": "三、实验探究", "questionTypeName": "实验探究", "count": 3, "order": 3 },
-        { "name": "四、计算题", "questionTypeName": "计算", "count": 3, "order": 4 }
-      ]
-    },
-    {
-      "name": "初中文科材料分析卷",
-      "subject": "历史",
-      "gradeRange": ["初中一年级", "初中二年级", "初中三年级"],
-      "orientation": "portrait",
-      "sections": [
-        { "name": "一、选择题", "questionTypeName": "选择", "count": 15, "order": 1 },
-        { "name": "二、材料分析", "questionTypeName": "材料分析", "count": 3, "order": 2 },
-        { "name": "三、综合探究", "questionTypeName": "综合探究", "count": 1, "order": 3 }
+        { "name": "一、填空题", "questionTypeName": "填空", "count": 15, "order": 1, "notes": "30分，参照标准卷每空或每题折算。" },
+        { "name": "二、选择题", "questionTypeName": "选择", "count": 6, "order": 2, "notes": "6分，每题1分。" },
+        { "name": "三、判断题", "questionTypeName": "判断", "count": 6, "order": 3, "notes": "6分，每题1分。" },
+        { "name": "四、计算题", "questionTypeName": "计算", "count": 10, "order": 4, "notes": "16分，含口算、求比值、解方程和圆相关计算。" },
+        { "name": "五、图形计算", "questionTypeName": "图形与几何", "count": 1, "order": 5, "notes": "4分，优先选择无需图片或已有资产的图形题。" },
+        { "name": "六、解决问题", "questionTypeName": "应用题", "count": 6, "order": 6, "notes": "38分，覆盖百分数、比、圆、行程和体积等综合应用。" }
       ]
     }
   ],

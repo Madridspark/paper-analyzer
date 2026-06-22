@@ -293,6 +293,15 @@ app.get('/api/paper-templates', async (_req, res) => {
   res.json({ paperTemplates: db.paperTemplates });
 });
 
+app.get('/api/paper-templates/:id', async (req, res) => {
+  const db = await readDb();
+  const template = db.paperTemplates.find((item) => item.id === req.params.id);
+  if (!template) {
+    return res.status(404).json({ message: '模板不存在。' });
+  }
+  res.json({ paperTemplate: template });
+});
+
 app.post('/api/paper-templates', async (req, res) => {
   const db = await readDb();
   const template = normalizeTemplate(req.body);
@@ -314,6 +323,17 @@ app.patch('/api/paper-templates/:id', async (req, res) => {
   };
   await writeDb(db);
   res.json({ paperTemplate: db.paperTemplates[index] });
+});
+
+app.delete('/api/paper-templates/:id', async (req, res) => {
+  const db = await readDb();
+  const index = db.paperTemplates.findIndex((item) => item.id === req.params.id);
+  if (index < 0) {
+    return res.status(404).json({ message: '模板不存在。' });
+  }
+  const [paperTemplate] = db.paperTemplates.splice(index, 1);
+  await writeDb(db);
+  res.json({ ok: true, paperTemplate });
 });
 
 app.get('/api/files/:fileId', async (req, res) => {
@@ -474,7 +494,7 @@ async function ensureDb() {
     await fs.access(dbPath);
   } catch {
     const db = {
-      version: 2,
+      version: 3,
       students: [],
       uploadBatches: [],
       submissions: [],
@@ -492,7 +512,11 @@ async function ensureDb() {
 
 async function readDb() {
   await ensureDir(dataDir);
-  return JSON.parse(await fs.readFile(dbPath, 'utf8'));
+  const db = JSON.parse(await fs.readFile(dbPath, 'utf8'));
+  if (reconcileDb(db)) {
+    await writeDb(db);
+  }
+  return db;
 }
 
 async function writeDb(db) {
@@ -517,7 +541,9 @@ function seedQuestionTypes() {
 }
 
 function seedPaperTemplates() {
-  return catalog.paperTemplates.map((item) => normalizeTemplate({ ...item, isSystem: true }));
+  return catalog.paperTemplates.map((item, index) =>
+    normalizeTemplate({ ...item, isSystem: true }, item.id || `tpl_system_${index + 1}`)
+  );
 }
 
 function seedKnowledgePoints() {
@@ -549,7 +575,7 @@ function normalizeTemplate(input, id = makeId('tpl')) {
     gradeRange: Array.isArray(input.gradeRange) ? input.gradeRange : [],
     orientation: input.orientation === 'landscape' ? 'landscape' : 'portrait',
     sections: sections.map((section, index) => ({
-      id: section.id || makeId('sec'),
+      id: section.id || (input.isSystem ? `${id}_sec_${index + 1}` : makeId('sec')),
       name: section.name || `模块 ${index + 1}`,
       questionTypeId: section.questionTypeId || '',
       questionTypeName: section.questionTypeName || section.type || '自定义题型',
@@ -562,6 +588,18 @@ function normalizeTemplate(input, id = makeId('tpl')) {
     createdAt: input.createdAt || now(),
     updatedAt: now()
   };
+}
+
+function reconcileDb(db) {
+  if (Number(db.version || 0) >= 3) {
+    return false;
+  }
+  const customTemplates = Array.isArray(db.paperTemplates)
+    ? db.paperTemplates.filter((item) => !item.isSystem)
+    : [];
+  db.paperTemplates = [...seedPaperTemplates(), ...customTemplates];
+  db.version = 3;
+  return true;
 }
 
 function emptyBankProgress() {

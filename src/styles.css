@@ -34,18 +34,19 @@ textarea {
   gap: 12px;
   min-height: 64px;
   padding: 10px clamp(14px, 4vw, 32px);
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid #e5e7eb;
-  backdrop-filter: blur(12px);
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
 }
 
 .brand-button {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 220px;
   padding: 0;
-  color: #111827;
+  color: #ffffff;
   font-size: 18px;
   font-weight: 700;
   background: transparent;
@@ -53,22 +54,48 @@ textarea {
   cursor: pointer;
 }
 
-.topbar-nav {
-  display: flex;
+.topbar-menu {
   flex: 1;
-  gap: 6px;
   min-width: 0;
+  color: #e2e8f0;
+  background: transparent;
+  border-bottom: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.topbar-nav::-webkit-scrollbar {
-  display: none;
+.topbar-menu.ant-menu-dark {
+  background: transparent;
 }
 
-.topbar-nav .ant-btn,
-.topbar-refresh {
+.topbar-menu.ant-menu-horizontal {
+  line-height: 42px;
+}
+
+.mobile-menu-button {
+  display: none;
   flex: 0 0 auto;
+  color: #ffffff;
+}
+
+.mobile-menu-button:hover,
+.mobile-menu-button:focus {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.mobile-nav-drawer .ant-drawer-header {
+  background: #0f172a;
+  border-bottom-color: #1e293b;
+}
+
+.mobile-nav-drawer .ant-drawer-title,
+.mobile-nav-drawer .ant-drawer-close {
+  color: #ffffff;
+}
+
+.topbar-menu::-webkit-scrollbar {
+  display: none;
 }
 
 .brand-button span {
@@ -166,6 +193,13 @@ textarea {
 
 .template-sections {
   max-width: 520px;
+}
+
+.template-name-button {
+  height: auto;
+  padding: 0;
+  white-space: normal;
+  text-align: left;
 }
 
 .question-label {
@@ -293,22 +327,21 @@ textarea {
 
 @media (max-width: 768px) {
   .topbar {
-    align-items: stretch;
-    flex-wrap: wrap;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   .brand-button {
-    flex: 1 1 calc(100% - 92px);
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .topbar-refresh {
-    flex: 0 0 auto;
+  .topbar-menu {
+    display: none;
   }
 
-  .topbar-nav {
-    order: 3;
-    flex-basis: 100%;
-    padding-bottom: 2px;
+  .mobile-menu-button {
+    display: inline-flex;
   }
 
   .workflow-steps {
