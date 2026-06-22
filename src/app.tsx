@@ -26,15 +26,21 @@ import {
   Space,
   Spin,
   Tabs,
+  Table,
   Tag,
   Typography,
   Upload
 } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type {
   AppTask,
+  BankGroupCount,
+  BankProgress,
+  BankSubjectModule,
+  BankSubjectTermTypeRow,
   CatalogResponse,
   KnowledgePoint,
   QuestionType,
@@ -49,11 +55,12 @@ const { TextArea } = Input;
 
 const apiBaseUrl = import.meta.env.BASE_URL;
 
-type ActivePage = 'upload' | 'tasks' | 'students' | 'practice' | 'templates' | 'syllabus';
+type ActivePage = 'upload' | 'tasks' | 'bank' | 'students' | 'practice' | 'templates' | 'syllabus';
 
 const navigationItems: Array<{ key: ActivePage; label: string }> = [
   { key: 'upload', label: '作答上传' },
   { key: 'tasks', label: '任务管理' },
+  { key: 'bank', label: '题库' },
   { key: 'students', label: '学生管理' },
   { key: 'practice', label: '出卷' },
   { key: 'templates', label: '模板库' },
@@ -75,12 +82,17 @@ export default function App() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [analysisTasks, setAnalysisTasks] = useState<AppTask[]>([]);
   const [practiceTasks, setPracticeTasks] = useState<AppTask[]>([]);
+  const [bankProgress, setBankProgress] = useState<BankProgress | null>(null);
   const [activeTab, setActiveTab] = useState<ActivePage>('upload');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void loadAll();
-    const timer = window.setInterval(() => void loadTasks(), 15000);
+    void loadBankProgress();
+    const timer = window.setInterval(() => {
+      void loadTasks();
+      void loadBankProgress();
+    }, 15000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -95,6 +107,7 @@ export default function App() {
     setStudents(studentData.students);
     setSubmissions(submissionData.submissions);
     await loadTasks();
+    await loadBankProgress();
     setLoading(false);
   }
 
@@ -107,6 +120,15 @@ export default function App() {
     setPracticeTasks(practiceData.tasks);
   }
 
+  async function loadBankProgress() {
+    try {
+      const progress = await requestJson<BankProgress>('api/bank-progress');
+      setBankProgress(progress);
+    } catch {
+      setBankProgress(null);
+    }
+  }
+
   const grades = catalog?.catalog.grades ?? [];
   const subjects = catalog?.catalog.subjects ?? [];
 
@@ -114,6 +136,8 @@ export default function App() {
     switch (activeTab) {
       case 'tasks':
         return <TaskWorkspace analysisTasks={analysisTasks} practiceTasks={practiceTasks} />;
+      case 'bank':
+        return <BankProgressWorkspace progress={bankProgress} onRefresh={loadBankProgress} />;
       case 'students':
         return <StudentWorkspace students={students} submissions={submissions} practiceTasks={practiceTasks} />;
       case 'practice':
@@ -397,6 +421,175 @@ function TaskWorkspace({ analysisTasks, practiceTasks }: { analysisTasks: AppTas
       )}
     </Card>
   );
+}
+
+function BankProgressWorkspace({ progress, onRefresh }: { progress: BankProgress | null; onRefresh: () => Promise<void> }) {
+  const counters = progress?.counters ?? {};
+  const ready = Number(counters.readyQuestions ?? counters.totalQuestions ?? 0);
+  const needsSolving = Number(counters.needsSolvingQuestions ?? 0);
+  const availabilityTotal = ready + needsSolving;
+  const modules = progress?.subjectModules ?? [];
+  const progressLabel = progress?.serverReceivedAt
+    ? `服务器收到：${formatTime(progress.serverReceivedAt)}`
+    : progress?.generatedAt
+      ? `本机生成：${formatTime(progress.generatedAt)}`
+      : '尚未收到题库同步数据';
+
+  return (
+    <Space direction="vertical" size={16} className="full-width">
+      <Card
+        className="panel bank-hero"
+        title="题库"
+        extra={
+          <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()}>
+            刷新
+          </Button>
+        }
+      >
+        <Space direction="vertical" size={10} className="full-width">
+          <Text type="secondary">{progressLabel}</Text>
+          <div className="bank-stat-grid">
+            <BankMetric label="ready 题" value={ready.toLocaleString()} tone="ok" />
+            <BankMetric label="待 AI 补全" value={needsSolving.toLocaleString()} />
+            <BankMetric label="ready 占比" value={`${formatPercent(ready, availabilityTotal)}%`} />
+          </div>
+          <BankBar label="AI 黑盒补全进度" value={ready} total={availabilityTotal || 1} />
+        </Space>
+      </Card>
+
+      {modules.length ? (
+        modules.map((module) => <BankSubjectModuleCard key={module.subject} module={module} />)
+      ) : (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={8}>
+            <BankGroupTable title="按学科统计" nameLabel="学科" rows={progress?.bySubject ?? []} />
+          </Col>
+          <Col xs={24} lg={8}>
+            <BankGroupTable title="按年级统计" nameLabel="年级" rows={progress?.byGrade ?? []} />
+          </Col>
+          <Col xs={24} lg={8}>
+            <BankGroupTable title="按题型统计" nameLabel="题型" rows={progress?.byQuestionType ?? []} />
+          </Col>
+        </Row>
+      )}
+    </Space>
+  );
+}
+
+function BankSubjectModuleCard({ module }: { module: BankSubjectModule }) {
+  const columns = [
+    {
+      title: '年级/上下册',
+      dataIndex: 'label',
+      key: 'label',
+      fixed: 'left' as const,
+      width: 150
+    },
+    ...module.questionTypes.map((questionType) => ({
+      title: questionType,
+      key: questionType,
+      align: 'right' as const,
+      render: (_: unknown, row: BankSubjectTermTypeRow) =>
+        (row.readyByType?.[questionType] ?? 0).toLocaleString()
+    })),
+    {
+      title: 'ready 合计',
+      dataIndex: 'readyTotal',
+      key: 'readyTotal',
+      align: 'right' as const,
+      render: (value: number) => value.toLocaleString()
+    },
+    {
+      title: '待 AI',
+      dataIndex: 'needsSolvingTotal',
+      key: 'needsSolvingTotal',
+      align: 'right' as const,
+      render: (value?: number) => Number(value ?? 0).toLocaleString()
+    }
+  ];
+
+  return (
+    <Card
+      className="panel bank-subject-card"
+      title={`${module.subject}题库`}
+      extra={
+        <Space size={12} wrap>
+          <Text type="secondary">ready {module.readyTotal.toLocaleString()}</Text>
+          <Text type="secondary">待 AI {Number(module.needsSolvingTotal ?? 0).toLocaleString()}</Text>
+        </Space>
+      }
+    >
+      <Table
+        size="small"
+        pagination={false}
+        rowKey={(row) => `${module.subject}-${row.grade}-${row.term}`}
+        dataSource={module.rows}
+        scroll={{ x: 'max-content' }}
+        locale={{ emptyText: '暂无数据' }}
+        columns={columns}
+      />
+    </Card>
+  );
+}
+
+function BankGroupTable({ title, nameLabel, rows }: { title: string; nameLabel: string; rows: BankGroupCount[] }) {
+  return (
+    <Card className="panel bank-table-card" title={title}>
+      <Table
+        size="small"
+        pagination={false}
+        rowKey={(row, index) => `${row.name}-${index}`}
+        dataSource={rows}
+        locale={{ emptyText: '暂无数据' }}
+        columns={[
+          {
+            title: nameLabel,
+            dataIndex: 'name',
+            key: 'name',
+            ellipsis: true
+          },
+          {
+            title: '数量',
+            dataIndex: 'count',
+            key: 'count',
+            align: 'right',
+            render: (value: number) => value.toLocaleString()
+          }
+        ]}
+      />
+    </Card>
+  );
+}
+
+function BankMetric({ label, value, tone = 'plain' }: { label: string; value: ReactNode; tone?: 'plain' | 'ok' | 'warn' }) {
+  return (
+    <div className={`bank-metric ${tone}`}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function BankBar({ label, value, total }: { label: string; value: number; total: number }) {
+  const percent = Math.max(0, Math.min(100, Math.round((value / Math.max(total, 1)) * 100)));
+  return (
+    <div className="bank-bar-block">
+      <div className="bank-metric-row">
+        <Text type="secondary">{label}</Text>
+        <Text strong>{percent}%</Text>
+      </div>
+      <div className="bank-bar">
+        <span style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function formatPercent(value: number, total: number) {
+  if (!total) {
+    return 0;
+  }
+  return Math.round((value / total) * 100);
 }
 
 function TaskItem({ task }: { task: AppTask }) {

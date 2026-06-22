@@ -87,3 +87,4 @@ Authorization: Bearer <WORKER_TOKEN>
 ## 文档
 
 - [PRD](docs/prd.md)
+- [Question bank pipeline](docs/question-bank-pipeline-current.md)

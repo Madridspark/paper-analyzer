@@ -200,6 +200,86 @@ textarea {
   cursor: pointer;
 }
 
+.bank-hero {
+  background: #ffffff;
+}
+
+.bank-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.bank-metric {
+  min-height: 88px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.bank-metric strong {
+  display: block;
+  color: #111827;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.bank-metric span {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.bank-metric.ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.bank-metric.warn {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.bank-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+}
+
+.bank-bar-block {
+  display: grid;
+  gap: 6px;
+}
+
+.bank-bar {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.bank-bar span {
+  display: block;
+  height: 100%;
+  background: #1677ff;
+  border-radius: inherit;
+}
+
+.bank-table-card .ant-card-body,
+.bank-subject-card .ant-card-body {
+  padding: 0;
+}
+
+.bank-table-card .ant-table,
+.bank-subject-card .ant-table {
+  border-radius: 0 0 8px 8px;
+}
+
 .ant-list-item {
   padding-inline: 12px !important;
 }

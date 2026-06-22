@@ -122,3 +122,38 @@ export interface CatalogResponse {
   paperTemplates: PaperTemplate[];
   knowledgePoints: KnowledgePoint[];
 }
+
+export interface BankGroupCount {
+  name: string;
+  count: number;
+}
+
+export interface BankSubjectTermTypeRow {
+  label: string;
+  grade: string;
+  term: string;
+  readyByType: Record<string, number>;
+  needsSolvingByType?: Record<string, number>;
+  readyTotal: number;
+  needsSolvingTotal?: number;
+}
+
+export interface BankSubjectModule {
+  subject: string;
+  questionTypes: string[];
+  readyTotal: number;
+  needsSolvingTotal?: number;
+  rows: BankSubjectTermTypeRow[];
+}
+
+export interface BankProgress {
+  source?: string;
+  generatedAt?: string | null;
+  serverReceivedAt?: string | null;
+  message?: string;
+  counters?: Record<string, number | string | null>;
+  bySubject?: BankGroupCount[];
+  byGrade?: BankGroupCount[];
+  byQuestionType?: BankGroupCount[];
+  subjectModules?: BankSubjectModule[];
+}

@@ -233,6 +233,18 @@ app.get('/api/practice-tasks/:taskId', async (req, res) => {
   res.json({ task: expandPracticeTask(db, task) });
 });
 
+app.get('/api/bank-progress', async (_req, res) => {
+  const db = await readDb();
+  res.json(db.bankProgress || emptyBankProgress());
+});
+
+app.post('/api/bank-progress', requireWorkerToken, async (req, res) => {
+  const db = await readDb();
+  db.bankProgress = normalizeBankProgress(req.body ?? {});
+  await writeDb(db);
+  res.json({ ok: true, bankProgress: db.bankProgress });
+});
+
 app.get('/api/question-types', async (_req, res) => {
   const db = await readDb();
   res.json({ questionTypes: db.questionTypes });
@@ -471,6 +483,7 @@ async function ensureDb() {
       questionTypes: seedQuestionTypes(),
       paperTemplates: seedPaperTemplates(),
       knowledgePoints: seedKnowledgePoints(),
+      bankProgress: emptyBankProgress(),
       files: []
     };
     await writeDb(db);
@@ -549,6 +562,84 @@ function normalizeTemplate(input, id = makeId('tpl')) {
     createdAt: input.createdAt || now(),
     updatedAt: now()
   };
+}
+
+function emptyBankProgress() {
+  return {
+    source: 'not-synced',
+    generatedAt: null,
+    serverReceivedAt: null,
+    counters: {
+      totalQuestions: 0,
+      readyQuestions: 0,
+      needsSolvingQuestions: 0
+    },
+    bySubject: [],
+    byGrade: [],
+    byQuestionType: [],
+    subjectModules: []
+  };
+}
+
+function normalizeBankProgress(input) {
+  const counters = input.counters && typeof input.counters === 'object' ? input.counters : {};
+  return {
+    source: String(input.source || 'home-pc'),
+    generatedAt: input.generatedAt || null,
+    serverReceivedAt: now(),
+    message: typeof input.message === 'string' ? input.message : '',
+    counters: {
+      totalQuestions: Number(counters.totalQuestions ?? counters.readyQuestions ?? 0),
+      readyQuestions: Number(counters.readyQuestions ?? counters.totalQuestions ?? 0),
+      needsSolvingQuestions: Number(counters.needsSolvingQuestions ?? 0)
+    },
+    bySubject: normalizeCountRows(input.bySubject),
+    byGrade: normalizeCountRows(input.byGrade),
+    byQuestionType: normalizeCountRows(input.byQuestionType),
+    subjectModules: normalizeSubjectModules(input.subjectModules)
+  };
+}
+
+function normalizeCountRows(rows) {
+  return Array.isArray(rows)
+    ? rows
+        .map((row) => ({
+          name: String(row?.name || '未标注'),
+          count: Number(row?.count || 0)
+        }))
+        .filter((row) => row.name)
+    : [];
+}
+
+function normalizeSubjectModules(modules) {
+  return Array.isArray(modules)
+    ? modules
+        .map((module) => ({
+          subject: String(module?.subject || '未标注'),
+          questionTypes: Array.isArray(module?.questionTypes) ? module.questionTypes.map(String) : [],
+          readyTotal: Number(module?.readyTotal || 0),
+          needsSolvingTotal: Number(module?.needsSolvingTotal || 0),
+          rows: Array.isArray(module?.rows)
+            ? module.rows.map((row) => ({
+                label: String(row?.label || [row?.grade, row?.term].filter(Boolean).join(' ') || '未标注'),
+                grade: String(row?.grade || ''),
+                term: String(row?.term || ''),
+                readyByType: normalizeTypeCountMap(row?.readyByType),
+                needsSolvingByType: normalizeTypeCountMap(row?.needsSolvingByType),
+                readyTotal: Number(row?.readyTotal || 0),
+                needsSolvingTotal: Number(row?.needsSolvingTotal || 0)
+              }))
+            : []
+        }))
+        .filter((module) => module.subject)
+    : [];
+}
+
+function normalizeTypeCountMap(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => [key, Number(value || 0)]));
 }
 
 function upsertStudent(db, rawName, currentGrade = '', notes = '') {
