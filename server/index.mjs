@@ -17,6 +17,7 @@ const dbPath = path.join(dataDir, 'db.json');
 const port = Number(process.env.PORT || 8787);
 const workerToken = process.env.WORKER_TOKEN || '';
 const ownerId = 'default';
+const currentDbVersion = 4;
 
 const app = express();
 
@@ -494,7 +495,7 @@ async function ensureDb() {
     await fs.access(dbPath);
   } catch {
     const db = {
-      version: 3,
+      version: currentDbVersion,
       students: [],
       uploadBatches: [],
       submissions: [],
@@ -591,14 +592,14 @@ function normalizeTemplate(input, id = makeId('tpl')) {
 }
 
 function reconcileDb(db) {
-  if (Number(db.version || 0) >= 3) {
+  if (Number(db.version || 0) >= currentDbVersion) {
     return false;
   }
   const customTemplates = Array.isArray(db.paperTemplates)
     ? db.paperTemplates.filter((item) => !item.isSystem)
     : [];
   db.paperTemplates = [...seedPaperTemplates(), ...customTemplates];
-  db.version = 3;
+  db.version = currentDbVersion;
   return true;
 }
 
